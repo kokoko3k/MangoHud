@@ -37,6 +37,20 @@ struct fps_limit fps_limit_stats {};
 ImVec2 real_font_size;
 std::vector<logData> graph_data;
 const char* engines[] = {"Unknown", "OpenGL", "VULKAN", "DXVK", "VKD3D", "DAMAVAND", "ZINK", "WINED3D", "Feral3D", "ToGL"};
+bool init_hw_thread, update_hw_info_thread = false;
+
+void hw_info_thread(struct swapchain_stats& sw_stats, struct overlay_params& params, uint32_t vendorID){
+   if (!init_hw_thread)
+      init_hw_thread = true;
+   
+   while (true){
+      if (update_hw_info_thread){
+         update_hw_info(sw_stats, params, vendorID);
+         update_hw_info_thread = false;
+      }
+      sleep(0.1);
+   }
+}
 
 void update_hw_info(struct swapchain_stats& sw_stats, struct overlay_params& params, uint32_t vendorID)
 {
@@ -111,7 +125,10 @@ void update_hud_info(struct swapchain_stats& sw_stats, struct overlay_params& pa
 
    frametime = (now - sw_stats.last_present_time) / 1000;
    if (elapsed >= params.fps_sampling_period) {
-      std::thread(update_hw_info, std::ref(sw_stats), std::ref(params), vendorID).detach();
+      update_hw_info_thread = true;
+      if (!init_hw_thread)
+         std::thread(hw_info_thread, std::ref(sw_stats), std::ref(params), vendorID).detach();
+
       sw_stats.fps = fps;
 
       if (params.enabled[OVERLAY_PARAM_ENABLED_time]) {
